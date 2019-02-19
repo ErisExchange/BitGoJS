@@ -52,7 +52,7 @@ class OFCToken extends Ofc {
    * - prv
    * @returns {{txHex}}
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
 
@@ -60,6 +60,7 @@ class OFCToken extends Ofc {
     const signatureBuffer = this.signMessage(params, payload);
     const signature = signatureBuffer.toString('hex');
     return { halfSigned: { payload, signature } };
+  }).call(this).asCallback(callback);
   }
 
 }

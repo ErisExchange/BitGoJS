@@ -303,7 +303,7 @@ class Eth extends BaseCoin {
    * - prv
    * @returns {{txHex}}
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
     const EXPIRETIME_DEFAULT = 60 * 60 * 24 * 7; // This signature will be valid for 1 week
@@ -352,6 +352,7 @@ class Eth extends BaseCoin {
       gasPrice: params.gasPrice
     };
     return { halfSigned: txParams };
+  }).call(this).asCallback(callback);
   }
 
   /**

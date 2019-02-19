@@ -519,7 +519,7 @@ class Xlm extends BaseCoin {
    * @param params.txPrebuild {Object} prebuild object returned by platform
    * @param params.prv {String} user prv
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const { txPrebuild, prv } = params;
 
     if (_.isUndefined(txPrebuild)) {
@@ -545,6 +545,7 @@ class Xlm extends BaseCoin {
         txBase64: tx.toEnvelope().toXDR('base64')
       }
     };
+  }).call(this).asCallback(callback);
   }
 
   /**
