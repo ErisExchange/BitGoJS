@@ -6,6 +6,7 @@
 //
 
 const Promise = require('bluebird');
+const co = Promise.coroutine;
 const bitcoin = require('./bitcoin');
 const config = require('./config');
 const _ = require('lodash');
@@ -796,7 +797,7 @@ exports.calculateMinerFeeInfo = function(params) {
  *  feeSingleKeyWIF Use the address based on this private key to pay fees
  * @returns {*}
  */
-exports.signTransaction = function(params) {
+exports.signTransaction = function(params) {return co(function *signTransaction() {
   let keychain = params.keychain; // duplicate so as to not mutate below
 
   const validate = (params.validate === undefined) ? true : params.validate;
@@ -870,7 +871,7 @@ exports.signTransaction = function(params) {
         feeSingleKey.network = network;
       }
 
-      txb.sign(index, feeSingleKey);
+      yield txb.sign(index, feeSingleKey);
       continue;
     }
 
@@ -907,7 +908,7 @@ exports.signTransaction = function(params) {
 
         debug('Current unspent value: %d', currentUnspent.value);
 
-        txb.sign(index, privKey, subscript, bitcoin.Transaction.SIGHASH_ALL, currentUnspent.value, witnessScript);
+        yield txb.sign(index, privKey, subscript, bitcoin.Transaction.SIGHASH_ALL, currentUnspent.value, witnessScript);
 
         if (Array.isArray(signatures)) {
           // for segwit inputs, if they are partially signed, bitcoinjs-lib overrides previous signatures
@@ -931,7 +932,7 @@ exports.signTransaction = function(params) {
         }
         debug('BCH parameter: %d', bchParameter);
         debug('Sighash type: %d', sigHashType);
-        txb.sign(index, privKey, subscript, sigHashType, bchParameter);
+        yield txb.sign(index, privKey, subscript, sigHashType, bchParameter);
       }
 
     } catch (e) {
@@ -981,9 +982,10 @@ exports.signTransaction = function(params) {
     }
   }
 
-  return Promise.resolve({
+  return {
     transactionHex: transaction.toHex()
-  });
+  };
+})();
 };
 
 /**
