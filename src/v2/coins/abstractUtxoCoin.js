@@ -609,7 +609,7 @@ class AbstractUtxoCoin extends BaseCoin {
    * @param params.isLastSignature Ture if txb.build() should be called and not buildIncomplete()
    * @returns {{txHex}}
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
 
@@ -673,16 +673,16 @@ class AbstractUtxoCoin extends BaseCoin {
           const witnessScript = Buffer.from(currentUnspent.witnessScript, 'hex');
           const witnessScriptHash = bitcoin.crypto.sha256(witnessScript);
           const prevOutScript = bitcoin.script.witnessScriptHash.output.encode(witnessScriptHash);
-          txb.sign(index, privKey, prevOutScript, sigHashType, currentUnspent.value, witnessScript);
+          yield txb.sign(index, privKey, prevOutScript, sigHashType, currentUnspent.value, witnessScript);
         } else {
           const subscript = new Buffer(currentUnspent.redeemScript, 'hex');
           if (isSegwit) {
             debug('Signing segwit input');
             const witnessScript = Buffer.from(currentUnspent.witnessScript, 'hex');
-            txb.sign(index, privKey, subscript, sigHashType, currentUnspent.value, witnessScript);
+            yield txb.sign(index, privKey, subscript, sigHashType, currentUnspent.value, witnessScript);
           } else {
             debug('Signing p2sh input');
-            txb.sign(index, privKey, subscript, sigHashType, currentUnspent.value);
+            yield txb.sign(index, privKey, subscript, sigHashType, currentUnspent.value);
           }
         }
 
@@ -728,6 +728,7 @@ class AbstractUtxoCoin extends BaseCoin {
     return {
       txHex: transaction.toBuffer().toString('hex')
     };
+  }).call(this).asCallback(callback);
   }
 
   /**
@@ -1238,7 +1239,7 @@ class AbstractUtxoCoin extends BaseCoin {
         const txHex = transactionBuilder.buildIncomplete().toBuffer().toString('hex');
         return this.formatForOfflineVault(txInfo, txHex);
       } else {
-        const signedTx = this.signRecoveryTransaction(transactionBuilder, unspents, addressesById, !isKrsRecovery);
+        const signedTx = yield this.signRecoveryTransaction(transactionBuilder, unspents, addressesById, !isKrsRecovery);
         txInfo.transactionHex = signedTx.build().toBuffer().toString('hex');
         try {
           txInfo.tx = yield this.verifyRecoveryTransaction(txInfo);
@@ -1268,10 +1269,10 @@ class AbstractUtxoCoin extends BaseCoin {
    * @param addresses {Array} the address and redeem script info for the unspents
    * @param cosign {Boolean} whether to cosign this transaction with the user's backup key (false if KRS recovery)
    */
-  signRecoveryTransaction(txb, unspents, addresses, cosign) {
+  signRecoveryTransaction(txb, unspents, addresses, cosign, callback) {return co(function *signRecoveryTransaction() {
     // sign the inputs
     const signatureIssues = [];
-    unspents.forEach((unspent, i) => {
+    yield Promise.map(unspents, co(function *(unspent, i) {
       const address = addresses[unspent.address];
       const backupPrivateKey = address.backupKey.keyPair;
       const userPrivateKey = address.userKey.keyPair;
@@ -1286,7 +1287,7 @@ class AbstractUtxoCoin extends BaseCoin {
 
       if (cosign) {
         try {
-          txb.sign(i, backupPrivateKey, address.redeemScript, this.constructor.defaultSigHashType, unspent.amount, address.witnessScript);
+          yield txb.sign(i, backupPrivateKey, address.redeemScript, this.constructor.defaultSigHashType, unspent.amount, address.witnessScript);
         } catch (e) {
           currentSignatureIssue.error = e;
           signatureIssues.push(currentSignatureIssue);
@@ -1294,12 +1295,12 @@ class AbstractUtxoCoin extends BaseCoin {
       }
 
       try {
-        txb.sign(i, userPrivateKey, address.redeemScript, this.constructor.defaultSigHashType, unspent.amount, address.witnessScript);
+        yield txb.sign(i, userPrivateKey, address.redeemScript, this.constructor.defaultSigHashType, unspent.amount, address.witnessScript);
       } catch (e) {
         currentSignatureIssue.error = e;
         signatureIssues.push(currentSignatureIssue);
       }
-    });
+    }).bind(this));
 
     if (signatureIssues.length > 0) {
       const failedIndices = signatureIssues.map(currentIssue => currentIssue.inputIndex);
@@ -1310,6 +1311,7 @@ class AbstractUtxoCoin extends BaseCoin {
     }
 
     return txb;
+  }).call(this).asCallback(callback);
   }
 
   /**
