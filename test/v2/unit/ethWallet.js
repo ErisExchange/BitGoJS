@@ -4,6 +4,8 @@ const co = Promise.coroutine;
 require('should');
 const TestV2BitGo = require('../../lib/test_bitgo');
 const sinon = require('sinon');
+require('should-sinon');
+require('../lib/asserts');
 const Util = require('../../../src/util');
 const fixtures = require('../fixtures/eth.js');
 const EthTx = require('ethereumjs-tx');
@@ -27,13 +29,28 @@ describe('Sign ETH Transaction', co(function *() {
     tx = { recipients, nextContractSequenceId: 0 };
   }));
 
-  it('should read transaction recipients from txPrebuild even if none are specified as top-level params', co(function *() {
+  before(() => {
     sinon.stub(Util, 'xprvToEthPrivateKey');
     sinon.stub(Util, 'ethSignMsgHash');
     sinon.stub(ethWallet.getOperationSha3ForExecuteAndConfirm);
+  });
+  after(() => {
+    Util.xprvToEthPrivateKey.restore();
+    Util.ethSignMsgHash.restore();
+    sinon.restore();
+  });
+
+  it('should read transaction recipients from txPrebuild even if none are specified as top-level params', co(function *() {
     const { halfSigned } = yield ethWallet.signTransaction({ txPrebuild: tx, prv: 'my_user_prv' });
     halfSigned.should.have.property('recipients', recipients);
-    sinon.restore();
+  }));
+
+  it('should call a custom signing function', co(function *() {
+    const mySignature = 'my_signature';
+    const mySigningFunction = sinon.stub().resolves(mySignature);
+    const { halfSigned } = yield ethWallet.signTransaction({ txPrebuild: tx, sign: mySigningFunction });
+    halfSigned.should.have.property('signature', mySignature);
+    mySigningFunction.should.have.been.calledOnceWith(halfSigned.operationHash);
   }));
 
   it('should throw an error if no recipients are in the txPrebuild and none are specified as params', co(function *() {
