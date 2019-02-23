@@ -301,11 +301,11 @@ describe('V2 Wallet:', function() {
     it('should sign a prebuild using a custom signing function', co(function *() {
       let _prebuild = _.cloneDeep(prebuild);
       // a signing function
-      const signFn = async (path, hash) => {
+      const signFn = co(function *(path, hash) {
         var hdPath = bitcoin.hdPath(bitcoin.HDNode.fromBase58(userKeychain.prv));
         var privKey = hdPath.deriveKey(path);
         return privKey.sign(hash);
-      }
+      });
 
       // sign transaction
       const halfSignedTransaction = yield wallet.signTransaction({
