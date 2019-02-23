@@ -1,6 +1,8 @@
 require('should');
 const Promise = require('bluebird');
 const co = Promise.coroutine;
+const _ = require('lodash');
+const bitcoin = require('bitgo-utxo-lib');
 
 const TestV2BitGo = require('../../../lib/test_bitgo');
 const Wallet = require('../../../../src/v2/wallet');
@@ -338,17 +340,18 @@ describe('BTC:', function() {
     describe('should half-sign and fully signed transaction prebuild', function() {
 
       it('using provided user key', co(function*() {
+        var _prebuild = _.cloneDeep(prebuild);
 
         // half-sign with the user key
         const halfSignedTransaction = yield wallet.signTransaction({
-          txPrebuild: prebuild,
+          txPrebuild: _prebuild,
           prv: userKeychain.prv
         });
 
         // fully sign transaction
-        prebuild.txHex = halfSignedTransaction.txHex;
+        _prebuild.txHex = halfSignedTransaction.txHex;
         const signedTransaction = yield wallet.signTransaction({
-          txPrebuild: prebuild,
+          txPrebuild: _prebuild,
           prv: backupKeychain.prv,
           isLastSignature: true
         });
@@ -357,27 +360,32 @@ describe('BTC:', function() {
 
       }));
 
-      it.skip('using provided signing function', co(function*() {
+      it('using provided signing function', co(function*() {
+        var _prebuild = _.cloneDeep(prebuild);
 
-        // half-sign to the user key
-        const userKeySignFn = co(function*() {
-          yield "foo";
-          //debugger;
+        // half-sign with the user key
+        const userKeySignFn = co(function*(path, hash) {
+          var hdPath = bitcoin.hdPath(bitcoin.HDNode.fromBase58(userKeychain.prv));
+          var privKey = hdPath.deriveKey(path);
+          return privKey.sign(hash);
         });
         const halfSignedTransaction = yield wallet.signTransaction({
-          txPrebuild: prebuild,
-          signFn: userKeySignFn
+          txPrebuild: _prebuild,
+          pub: userKeychain.pub,
+          sign: userKeySignFn
         });
 
         // fully sign transaction
-        prebuild.txHex = halfSignedTransaction.txHex;
-        const backupKeySignFn = co(function*() {
-          yield "bar";
-          //debugger;
+        _prebuild.txHex = halfSignedTransaction.txHex;
+        const backupKeySignFn = co(function*(path, hash) {
+          var hdPath = bitcoin.hdPath(bitcoin.HDNode.fromBase58(backupKeychain.prv));
+          var privKey = hdPath.deriveKey(path);
+          return privKey.sign(hash);
         });
         const signedTransaction = yield wallet.signTransaction({
-          txPrebuild: prebuild,
-          signFn: backupKeySignFn,
+          txPrebuild: _prebuild,
+          pub: backupKeychain.pub,
+          sign: backupKeySignFn,
           isLastSignature: true
         });
 

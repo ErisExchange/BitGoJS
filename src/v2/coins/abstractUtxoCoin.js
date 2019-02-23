@@ -606,12 +606,16 @@ class AbstractUtxoCoin extends BaseCoin {
    * @param params
    * - txPrebuild
    * - prv
+   * - pub
+   * - sign: async (path, hashToSign) => signature
    * @param params.isLastSignature Ture if txb.build() should be called and not buildIncomplete()
    * @returns {{txHex}}
    */
   signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
+    const userPub = params.pub;
+    const userFn = params.sign;
 
     if (_.isUndefined(txPrebuild) || !_.isObject(txPrebuild)) {
       if (!_.isUndefined(txPrebuild) && !_.isObject(txPrebuild)) {
@@ -631,15 +635,22 @@ class AbstractUtxoCoin extends BaseCoin {
       isLastSignature = params.isLastSignature;
     }
 
-    if (_.isUndefined(userPrv) || !_.isString(userPrv)) {
+    if (!_.isFunction(userFn) && (_.isUndefined(userPrv) || !_.isString(userPrv))) {
       if (!_.isUndefined(userPrv) && !_.isString(userPrv)) {
         throw new Error(`prv must be a string, got type ${typeof userPrv}`);
       }
       throw new Error('missing prv parameter to sign transaction');
     }
 
-    const keychain = bitcoin.HDNode.fromBase58(userPrv);
-    const hdPath = bitcoin.hdPath(keychain);
+    if (_.isFunction(userFn) && (_.isUndefined(userPub) || !_.isString(userPub))) {
+      if (!_.isUndefined(userPub) && !_.isString(userPub)) {
+        throw new Error(`pub must be a string, got type ${typeof userPub}`);
+      }
+      throw new Error('missing pub parameter to sign transaction');
+    }
+
+    const keychain = _.isUndefined(userPrv) ? undefined : bitcoin.HDNode.fromBase58(userPrv);
+    const hdPath = _.isUndefined(keychain) ? undefined : bitcoin.hdPath(keychain);
     const txb = bitcoin.TransactionBuilder.fromTransaction(transaction, this.network);
     this.constructor.prepareTransactionBuilder(txb);
 
@@ -654,9 +665,18 @@ class AbstractUtxoCoin extends BaseCoin {
         continue;
       }
       const path = 'm/0/0/' + currentUnspent.chain + '/' + currentUnspent.index;
-      const privKey = hdPath.deriveKey(path);
-      privKey.network = this.network;
+      const privKey = _.isUndefined(hdPath) ? {} : hdPath.deriveKey(path);
 
+      // Create a privKey based on the given pubkey and signing function
+      if (_.isFunction(userFn)) {
+        let _keychain = bitcoin.HDNode.fromBase58(userPub);
+        let _hdPath = bitcoin.hdPath(_keychain);
+        let _pubKey = _hdPath.deriveKey(path);
+        privKey.publicKey = _pubKey.getPublicKeyBuffer();
+        privKey.sign = _.curry(userFn, 2)(path);
+      }
+
+      privKey.network = this.network;
       const currentSignatureIssue = {
         inputIndex: index,
         unspent: currentUnspent,
