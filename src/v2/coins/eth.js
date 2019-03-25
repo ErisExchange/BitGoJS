@@ -209,7 +209,7 @@ class Eth extends BaseCoin {
       try {
         amount = new BigNumber(recipient.amount);
       } catch (e) {
-        throw new Error('Invalid amount for: ' + recipient.address + ' - should be numeric');
+        throw new Error('Invalid amount (' + recipient.amount + ') for: ' + recipient.address + ' - should be numeric (error was ' + e.message + ')');
       }
 
       recipient.amount = amount.toFixed(0);
