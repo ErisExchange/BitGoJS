@@ -282,16 +282,42 @@ describe('V2 Wallet:', function() {
     }));
 
     it('should sign a prebuild', co(function *() {
+      let _prebuild = _.cloneDeep(prebuild);
       // sign transaction
       const halfSignedTransaction = yield wallet.signTransaction({
-        txPrebuild: prebuild,
+        txPrebuild: _prebuild,
         prv: userKeychain.prv
       });
       halfSignedTransaction.txHex.should.equal('02000000010fef30ca07288fb78659253227b8514ae9397faf76e53530118712d240bfb10600000000b6004730440220140811e76ad440c863164a1f9c0956b7a7db17a29f3fe543576dd6279f975243022006ec7def583d18e8ac2de5bb7bf9c647b67d510c07fc7bdc2487ab06f08e3a684100004c695221032c227d73891b33c45f5f02ab7eebdc4f4ed9ffb5565aedbfb478abb1bfd9d467210266824ac31b6a9d6568c3f7ced9aee1c720cd85994dd41d43dc63b0977195729e21037c07484a5d2d3831d38df1b7b45a2459df6fb40b204bbbf24e0f11763c79a50953aeffffffff02255df4240000000017a9149799c321e46a9c7bb11835495a96d6ae31af36c58780c3c9010000000017a9144394c8c16c50397285830b449ceca588f5f359e98700000000');
 
-      prebuild.txHex = halfSignedTransaction.txHex;
+      _prebuild.txHex = halfSignedTransaction.txHex;
       const signedTransaction = yield wallet.signTransaction({
-        txPrebuild: prebuild,
+        txPrebuild: _prebuild,
+        prv: backupKeychain.prv
+      });
+      signedTransaction.txHex.should.equal(signedTxHex);
+    }));
+
+    it('should sign a prebuild using a custom signing function', co(function *() {
+      let _prebuild = _.cloneDeep(prebuild);
+      // a signing function
+      const signFn = co(function *(path, hash) {
+        var hdPath = bitcoin.hdPath(bitcoin.HDNode.fromBase58(userKeychain.prv));
+        var privKey = hdPath.deriveKey(path);
+        return privKey.sign(hash);
+      });
+
+      // sign transaction
+      const halfSignedTransaction = yield wallet.signTransaction({
+        txPrebuild: _prebuild,
+        pub: userKeychain.pub,
+        sign: signFn
+      });
+      halfSignedTransaction.txHex.should.equal('02000000010fef30ca07288fb78659253227b8514ae9397faf76e53530118712d240bfb10600000000b6004730440220140811e76ad440c863164a1f9c0956b7a7db17a29f3fe543576dd6279f975243022006ec7def583d18e8ac2de5bb7bf9c647b67d510c07fc7bdc2487ab06f08e3a684100004c695221032c227d73891b33c45f5f02ab7eebdc4f4ed9ffb5565aedbfb478abb1bfd9d467210266824ac31b6a9d6568c3f7ced9aee1c720cd85994dd41d43dc63b0977195729e21037c07484a5d2d3831d38df1b7b45a2459df6fb40b204bbbf24e0f11763c79a50953aeffffffff02255df4240000000017a9149799c321e46a9c7bb11835495a96d6ae31af36c58780c3c9010000000017a9144394c8c16c50397285830b449ceca588f5f359e98700000000');
+
+      _prebuild.txHex = halfSignedTransaction.txHex;
+      const signedTransaction = yield wallet.signTransaction({
+        txPrebuild: _prebuild,
         prv: backupKeychain.prv
       });
       signedTransaction.txHex.should.equal(signedTxHex);

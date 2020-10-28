@@ -1052,7 +1052,7 @@ Wallet.prototype.prebuildTransaction = function(params, callback) {
  * Sign a transaction
  * @param params
  * - txPrebuild
- * - [keychain / key] (object) or prv (string)
+ * - [keychain / key] (object) or prv (string) or sign (function)
  * - walletPassphrase
  * @param callback
  * @return {*}
@@ -1063,6 +1063,10 @@ Wallet.prototype.signTransaction = function(params, callback) {
   if (!txPrebuild || typeof txPrebuild !== 'object') {
     throw new Error('txPrebuild must be an object');
   }
+  let userFn = params.sign;
+  if (userFn && typeof userFn !== 'function') {
+    throw new Error('sign must be a function');
+  }
   let userPrv = params.prv;
   if (userPrv && typeof userPrv !== 'string') {
     throw new Error('prv must be a string');
@@ -1071,7 +1075,7 @@ Wallet.prototype.signTransaction = function(params, callback) {
     // the derivation only makes sense when a key already exists
     const derivation = this.baseCoin.deriveKeyWithSeed({ key: userPrv, seed: params.coldDerivationSeed });
     userPrv = derivation.key;
-  } else if (!userPrv) {
+  } else if (!userPrv && !userFn) {
     if (!userKeychain || typeof userKeychain !== 'object') {
       throw new Error('keychain must be an object');
     }
@@ -1088,7 +1092,7 @@ Wallet.prototype.signTransaction = function(params, callback) {
 
   const self = this;
   return Promise.try(function() {
-    const signingParams = _.extend({}, params, { txPrebuild: txPrebuild, prv: userPrv });
+    const signingParams = _.extend({}, params, { txPrebuild: txPrebuild, prv: userPrv, sign: userFn });
     return self.baseCoin.signTransaction(signingParams);
   })
   .nodeify(callback);

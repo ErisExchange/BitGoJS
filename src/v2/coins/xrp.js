@@ -129,7 +129,7 @@ class Xrp extends BaseCoin {
    * - prv
    * @returns {{txHex}}
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
 
@@ -154,6 +154,7 @@ class Xrp extends BaseCoin {
     const rippleLib = ripple();
     const halfSigned = rippleLib.signWithPrivateKey(txPrebuild.txHex, userPrivateKey.toString('hex'), { signAs: userAddress });
     return { halfSigned: { txHex: halfSigned.signedTransaction } };
+  }).call(this).asCallback(callback);
   }
 
   /**

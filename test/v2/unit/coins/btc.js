@@ -1,6 +1,8 @@
 require('should');
 const Promise = require('bluebird');
 const co = Promise.coroutine;
+const _ = require('lodash');
+const bitcoin = require('bitgo-utxo-lib');
 
 const TestV2BitGo = require('../../../lib/test_bitgo');
 const Wallet = require('../../../../src/v2/wallet');
@@ -294,66 +296,104 @@ describe('BTC:', function() {
       wallet = new Wallet(bitgo, basecoin, walletData);
     }));
 
-    it('should half-sign and fully signed transaction prebuild', co(function *() {
-
-      const prebuild = {
-        txHex: '0100000001d58f82d996dd872012675adadf4606734906b25a413f6e2ee535c0c10aef96020000000000ffffffff028de888000000000017a914c91aa24f65827eecec775037d886f2952b73cbe48740420f000000000017a9149304d18497b9bfe9532778a0f06d9fff3b3befaf87c8b11400',
-        txInfo: {
-          nP2SHInputs: 0,
-          nSegwitInputs: 1,
-          nOutputs: 2,
-          unspents: [
-            {
-              chain: 20,
-              index: 2,
-              witnessScript: '522103d4788cda52f91c1f6c82eb91491ca76108c9c5f0839bc4f02eccc55fedb3311c210391bcef9dcc89570a79ba3c7514e65cd48e766a8868eca2769fa9242fdcc796662102ef3c5ebac4b54df70dea1bb2655126368be10ca0462382fcb730e55cddd2dd6a53ae',
-              id: '0296ef0ac1c035e52e6e3f415ab20649730646dfda5a67122087dd96d9828fd5:0',
-              address: 'tb1qtxxqmkkdx4n4lcp0nt2cct89uh3h3dlcu940kw9fcqyyq36peh0st94hfp',
-              addressType: AbstractUtxoCoin.AddressTypes.P2WSH,
-              value: 10000000
-            }
-          ],
-          changeAddresses: [
-            '2NBaZiQX2xdj2VrJwpAPo4swbzvDyozvbBR'
-          ],
-          walletAddressDetails: {
-            '2NBaZiQX2xdj2VrJwpAPo4swbzvDyozvbBR': {
-              chain: 11,
-              index: 2,
-              coinSpecific: {
-                redeemScript: '0020d743abf2484b6e4b76522b13e1860f08ded95a6355f0418557117314ae418926',
-                witnessScript: '5221029052d1c6ca8adabe4559d9ccebce46629b17d7a26abd4cda3f837d4c14a83fae2102a6660deeb18ef3c9ec965c8600b942669652d83959c384409f4320a87e40ed7a2102abbd970ecde03a424663cb7d5171282673c30f865275b718bf56860dd37958b253ae'
-              }
+    const prebuild = {
+      txHex: '0100000001d58f82d996dd872012675adadf4606734906b25a413f6e2ee535c0c10aef96020000000000ffffffff028de888000000000017a914c91aa24f65827eecec775037d886f2952b73cbe48740420f000000000017a9149304d18497b9bfe9532778a0f06d9fff3b3befaf87c8b11400',
+      txInfo: {
+        nP2SHInputs: 0,
+        nSegwitInputs: 1,
+        nOutputs: 2,
+        unspents: [
+          {
+            chain: 20,
+            index: 2,
+            witnessScript: '522103d4788cda52f91c1f6c82eb91491ca76108c9c5f0839bc4f02eccc55fedb3311c210391bcef9dcc89570a79ba3c7514e65cd48e766a8868eca2769fa9242fdcc796662102ef3c5ebac4b54df70dea1bb2655126368be10ca0462382fcb730e55cddd2dd6a53ae',
+            id: '0296ef0ac1c035e52e6e3f415ab20649730646dfda5a67122087dd96d9828fd5:0',
+            address: 'tb1qtxxqmkkdx4n4lcp0nt2cct89uh3h3dlcu940kw9fcqyyq36peh0st94hfp',
+            addressType: AbstractUtxoCoin.AddressTypes.P2WSH,
+            value: 10000000
+          }
+        ],
+        changeAddresses: [
+          '2NBaZiQX2xdj2VrJwpAPo4swbzvDyozvbBR'
+        ],
+        walletAddressDetails: {
+          '2NBaZiQX2xdj2VrJwpAPo4swbzvDyozvbBR': {
+            chain: 11,
+            index: 2,
+            coinSpecific: {
+              redeemScript: '0020d743abf2484b6e4b76522b13e1860f08ded95a6355f0418557117314ae418926',
+              witnessScript: '5221029052d1c6ca8adabe4559d9ccebce46629b17d7a26abd4cda3f837d4c14a83fae2102a6660deeb18ef3c9ec965c8600b942669652d83959c384409f4320a87e40ed7a2102abbd970ecde03a424663cb7d5171282673c30f865275b718bf56860dd37958b253ae'
             }
           }
-        },
-        feeInfo: {
-          size: 218,
-          feeRate: 126468,
-          fee: 27571,
-          payGoFee: 0,
-          payGoFeeString: '0'
-        },
-        walletId: '5b5f81a78d2152514ab99a15ee9e0781'
-      };
+        }
+      },
+      feeInfo: {
+        size: 218,
+        feeRate: 126468,
+        fee: 27571,
+        payGoFee: 0,
+        payGoFeeString: '0'
+      },
+      walletId: '5b5f81a78d2152514ab99a15ee9e0781'
+    };
 
-      // half-sign with the user key
-      const halfSignedTransaction = yield wallet.signTransaction({
-        txPrebuild: prebuild,
-        prv: userKeychain.prv
-      });
+    describe('should half-sign and fully signed transaction prebuild', function() {
 
-      // fully sign transaction
-      prebuild.txHex = halfSignedTransaction.txHex;
-      const signedTransaction = yield wallet.signTransaction({
-        txPrebuild: prebuild,
-        prv: backupKeychain.prv,
-        isLastSignature: true
-      });
-      // broadcast here: https://testnet.smartbit.com.au/tx/5fb17d5ac94f180ba58be7f5a814a6e92a3c31bc00e39604c59c936dcef958bc
-      signedTransaction.txHex.should.equal(signedTxHex);
+      it('using provided user key', co(function*() {
+        var _prebuild = _.cloneDeep(prebuild);
 
-    }));
+        // half-sign with the user key
+        const halfSignedTransaction = yield wallet.signTransaction({
+          txPrebuild: _prebuild,
+          prv: userKeychain.prv
+        });
+
+        // fully sign transaction
+        _prebuild.txHex = halfSignedTransaction.txHex;
+        const signedTransaction = yield wallet.signTransaction({
+          txPrebuild: _prebuild,
+          prv: backupKeychain.prv,
+          isLastSignature: true
+        });
+        // broadcast here: https://testnet.smartbit.com.au/tx/5fb17d5ac94f180ba58be7f5a814a6e92a3c31bc00e39604c59c936dcef958bc
+        signedTransaction.txHex.should.equal(signedTxHex);
+
+      }));
+
+      it('using provided signing function', co(function*() {
+        var _prebuild = _.cloneDeep(prebuild);
+
+        // half-sign with the user key
+        const userKeySignFn = co(function*(path, hash) {
+          var hdPath = bitcoin.hdPath(bitcoin.HDNode.fromBase58(userKeychain.prv));
+          var privKey = hdPath.deriveKey(path);
+          return privKey.sign(hash);
+        });
+        const halfSignedTransaction = yield wallet.signTransaction({
+          txPrebuild: _prebuild,
+          pub: userKeychain.pub,
+          sign: userKeySignFn
+        });
+
+        // fully sign transaction
+        _prebuild.txHex = halfSignedTransaction.txHex;
+        const backupKeySignFn = co(function*(path, hash) {
+          var hdPath = bitcoin.hdPath(bitcoin.HDNode.fromBase58(backupKeychain.prv));
+          var privKey = hdPath.deriveKey(path);
+          return privKey.sign(hash);
+        });
+        const signedTransaction = yield wallet.signTransaction({
+          txPrebuild: _prebuild,
+          pub: backupKeychain.pub,
+          sign: backupKeySignFn,
+          isLastSignature: true
+        });
+
+        // broadcast here: https://testnet.smartbit.com.au/tx/5fb17d5ac94f180ba58be7f5a814a6e92a3c31bc00e39604c59c936dcef958bc
+        signedTransaction.txHex.should.equal(signedTxHex);
+
+      }));
+    });
 
   });
 

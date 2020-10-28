@@ -390,7 +390,7 @@ class CrossChainRecoveryTool {
       }
 
       const txPrebuild = { txHex: transactionHex, txInfo: this.txInfo };
-      this.halfSignedRecoveryTx = this.sourceCoin.signTransaction({ txPrebuild, prv });
+      this.halfSignedRecoveryTx = yield this.sourceCoin.signTransaction({ txPrebuild, prv });
 
       return this.halfSignedRecoveryTx;
     }).call(this).asCallback(callback);

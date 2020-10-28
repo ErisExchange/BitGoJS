@@ -123,7 +123,7 @@ class Rmg extends AbstractUtxoCoin {
    * - prv
    * @returns {{txHex}}
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
 
@@ -193,6 +193,7 @@ class Rmg extends AbstractUtxoCoin {
     return {
       txHex: transaction.toHex()
     };
+  }).call(this).asCallback(callback);
   }
 
   /**

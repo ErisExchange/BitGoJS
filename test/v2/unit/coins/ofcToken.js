@@ -1,4 +1,6 @@
 require('should');
+const Promise = require('bluebird');
+const co = Promise.coroutine;
 
 const TestV2BitGo = require('../../../lib/test_bitgo');
 
@@ -18,7 +20,7 @@ describe('OFC:', function() {
     otestusdCoin.getBaseFactor().should.equal('100');
   });
 
-  it('can sign payloads', function() {
+  it('can sign payloads', co(function *() {
     const inputParams = {
       txPrebuild: {
         payload: '{"token":"otestusd"}'
@@ -32,7 +34,7 @@ describe('OFC:', function() {
       }
     }
 
-    const signedResult = otestusdCoin.signTransaction(inputParams);
+    const signedResult = yield otestusdCoin.signTransaction(inputParams);
     signedResult.should.deepEqual(expectedResult);
-  });
+  }));
 });

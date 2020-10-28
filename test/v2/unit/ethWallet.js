@@ -4,6 +4,8 @@ const co = Promise.coroutine;
 require('should');
 const TestV2BitGo = require('../../lib/test_bitgo');
 const sinon = require('sinon');
+require('should-sinon');
+require('../lib/asserts');
 const Util = require('../../../src/util');
 const fixtures = require('../fixtures/eth.js');
 const EthTx = require('ethereumjs-tx');
@@ -27,13 +29,28 @@ describe('Sign ETH Transaction', co(function *() {
     tx = { recipients, nextContractSequenceId: 0 };
   }));
 
-  it('should read transaction recipients from txPrebuild even if none are specified as top-level params', co(function *() {
+  before(() => {
     sinon.stub(Util, 'xprvToEthPrivateKey');
     sinon.stub(Util, 'ethSignMsgHash');
     sinon.stub(ethWallet.getOperationSha3ForExecuteAndConfirm);
+  });
+  after(() => {
+    Util.xprvToEthPrivateKey.restore();
+    Util.ethSignMsgHash.restore();
+    sinon.restore();
+  });
+
+  it('should read transaction recipients from txPrebuild even if none are specified as top-level params', co(function *() {
     const { halfSigned } = yield ethWallet.signTransaction({ txPrebuild: tx, prv: 'my_user_prv' });
     halfSigned.should.have.property('recipients', recipients);
-    sinon.restore();
+  }));
+
+  it('should call a custom signing function', co(function *() {
+    const mySignature = 'my_signature';
+    const mySigningFunction = sinon.stub().resolves(mySignature);
+    const { halfSigned } = yield ethWallet.signTransaction({ txPrebuild: tx, sign: mySigningFunction });
+    halfSigned.should.have.property('signature', mySignature);
+    mySigningFunction.should.have.been.calledOnceWith(halfSigned.operationHash);
   }));
 
   it('should throw an error if no recipients are in the txPrebuild and none are specified as params', co(function *() {
@@ -57,8 +74,8 @@ describe('Add final signature to ETH tx from offline vault', function() {
     coin = bitgo.coin('teth');
   });
 
-  it('should successfully fully sign a half-signed transaction from the offline vault', function() {
-    const response = coin.signTransaction(paramsFromVault);
+  it('should successfully fully sign a half-signed transaction from the offline vault', co(function *() {
+    const response = yield coin.signTransaction(paramsFromVault);
     const expectedTx = new EthTx(expectedResult.txHex);
     const actualTx = new EthTx(response.txHex);
     actualTx.nonce.should.deepEqual(expectedTx.nonce);
@@ -71,5 +88,5 @@ describe('Add final signature to ETH tx from offline vault', function() {
     actualTx.gasPrice.should.deepEqual(expectedTx.gasPrice);
     actualTx.gasLimit.should.deepEqual(expectedTx.gasLimit);
     response.txHex.should.equal(expectedResult.txHex);
-  });
+  }));
 });

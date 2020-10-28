@@ -209,7 +209,7 @@ class Eth extends BaseCoin {
       try {
         amount = new BigNumber(recipient.amount);
       } catch (e) {
-        throw new Error('Invalid amount for: ' + recipient.address + ' - should be numeric');
+        throw new Error('Invalid amount (' + recipient.amount + ') for: ' + recipient.address + ' - should be numeric (error was ' + e.message + ')');
       }
 
       recipient.amount = amount.toFixed(0);
@@ -301,11 +301,14 @@ class Eth extends BaseCoin {
    * @param params
    * - txPrebuild
    * - prv
+   * - pub
+   * - sign: async (hashToSign) => signature
    * @returns {{txHex}}
    */
-  signTransaction(params) {
+  signTransaction(params, callback) {return co(function *signTransaction() {
     const txPrebuild = params.txPrebuild;
     const userPrv = params.prv;
+    const userFn = params.sign;
     const EXPIRETIME_DEFAULT = 60 * 60 * 24 * 7; // This signature will be valid for 1 week
 
     if (_.isUndefined(txPrebuild) || !_.isObject(txPrebuild)) {
@@ -315,7 +318,7 @@ class Eth extends BaseCoin {
       throw new Error('missing txPrebuild parameter');
     }
 
-    if (_.isUndefined(userPrv) || !_.isString(userPrv)) {
+    if (!_.isFunction(userFn) && (_.isUndefined(userPrv) || !_.isString(userPrv))) {
       if (!_.isUndefined(userPrv) && !_.isString(userPrv)) {
         throw new Error(`prv must be a string, got type ${typeof userPrv}`);
       }
@@ -339,7 +342,9 @@ class Eth extends BaseCoin {
     const expireTime = params.expireTime || secondsSinceEpoch + EXPIRETIME_DEFAULT;
 
     const operationHash = this.getOperationSha3ForExecuteAndConfirm(params.recipients, expireTime, txPrebuild.nextContractSequenceId);
-    const signature = Util.ethSignMsgHash(operationHash, Util.xprvToEthPrivateKey(userPrv));
+    const signature = yield _.isFunction(userFn) ?
+      userFn(operationHash) :
+        Promise.resolve(Util.ethSignMsgHash(operationHash, Util.xprvToEthPrivateKey(userPrv)));
 
     const txParams = {
       recipients: params.recipients,
@@ -352,6 +357,7 @@ class Eth extends BaseCoin {
       gasPrice: params.gasPrice
     };
     return { halfSigned: txParams };
+  }).call(this).asCallback(callback);
   }
 
   /**
